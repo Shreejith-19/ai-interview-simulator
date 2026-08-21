@@ -5,19 +5,26 @@ const interviewSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false,
     },
     role: {
       type: String,
       required: true,
+      trim: true,
     },
     difficulty: {
       type: String,
       required: true,
+      trim: true,
     },
     interviewType: {
       type: String,
       required: true,
+      trim: true,
+    },
+    resumeData: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
     },
     questions: {
       type: [String],
@@ -29,7 +36,9 @@ const interviewSchema = new mongoose.Schema(
     },
     status: {
       type: String,
+      default: "in_progress",
       required: true,
+      trim: true,
     },
   },
   {
@@ -39,4 +48,4 @@ const interviewSchema = new mongoose.Schema(
 
 const Interview = mongoose.model("Interview", interviewSchema);
 
-export default Interview;
+export default Interview;
