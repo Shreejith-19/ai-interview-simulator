@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
 import useAuth from "../context/useAuth.js";
 import useSpeechRecognition from "../hooks/useSpeechRecognition.js";
 
 const DEFAULT_FIRST_QUESTION =
   "Welcome to your interview! To start off, could you introduce yourself and tell me about a recent challenging project you worked on and the technical decisions you made?";
+
+const API_BASE_URL = "http://localhost:5000/api/interview";
 
 export default function InterviewSession() {
   const location = useLocation();
@@ -131,7 +134,7 @@ export default function InterviewSession() {
   };
 
   // Handle submitting user answer
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     if (e) e.preventDefault();
 
     const answer = inputText.trim();
@@ -155,39 +158,75 @@ export default function InterviewSession() {
     setInputText("");
     setIsAiThinking(true);
 
-    // Simulate AI follow-up response
-    setTimeout(() => {
-      const nextQNumber = questionCount + 1;
-      setQuestionCount(nextQNumber);
+    try {
+      let nextQuestionText = "";
+      const interviewId = sessionConfig.interviewId;
 
-      let aiResponseText = "";
-      if (nextQNumber === 2) {
-        aiResponseText = `Thank you for sharing that detailed answer. Digging deeper into your ${sessionConfig.role} experience: how do you typically monitor system performance, identify bottlenecks, and ensure reliable error handling in production?`;
-      } else if (nextQNumber === 3) {
-        aiResponseText =
-          "Great explanation. Can you tell me about a time when you disagreed with a technical decision made by a team member or stakeholder, and how you resolved the conflict constructively?";
-      } else if (nextQNumber === 4) {
-        aiResponseText = `Let's discuss architecture and scalability. If your service experiences a sudden 10x traffic surge during a peak event, what specific strategies and mechanisms would you employ to prevent cascading failures?`;
-      } else {
-        aiResponseText =
-          "Excellent response! We have covered the core technical and behavioral aspects for this session. Would you like to review your overall performance or do you have any final questions for me?";
+      // Check if interviewId looks like a valid 24-char hex MongoDB ObjectId
+      const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(interviewId);
+
+      if (isValidObjectId) {
+        const response = await axios.post(
+          `${API_BASE_URL}/${interviewId}/next-question`,
+          {
+            answer,
+            role: sessionConfig.role,
+            difficulty: sessionConfig.difficulty,
+            interviewType: sessionConfig.interviewType,
+          }
+        );
+        nextQuestionText = response.data?.nextQuestion;
       }
+
+      if (!nextQuestionText) {
+        // Fallback simulation for offline or demo sessions
+        const nextQNumber = questionCount + 1;
+        if (nextQNumber === 2) {
+          nextQuestionText = `Thank you for sharing that detailed answer. Digging deeper into your ${sessionConfig.role} experience: how do you typically monitor system performance, identify bottlenecks, and ensure reliable error handling in production?`;
+        } else if (nextQNumber === 3) {
+          nextQuestionText =
+            "Great explanation. Can you tell me about a time when you disagreed with a technical decision made by a team member or stakeholder, and how you resolved the conflict constructively?";
+        } else {
+          nextQuestionText = `Let's explore architecture and scalability. What specific strategies would you employ to handle high concurrency and prevent cascading failures in your services?`;
+        }
+      }
+
+      setQuestionCount((prev) => prev + 1);
 
       const aiMessage = {
         id: `msg-${Date.now() + 1}`,
         sender: "ai",
-        text: aiResponseText,
+        text: nextQuestionText,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-      setIsAiThinking(false);
 
       if (!isMuted) {
-        playSpeech(aiResponseText);
+        playSpeech(nextQuestionText);
       }
-    }, 1500);
+    } catch (err) {
+      console.error("Failed to generate next question from backend:", err);
+      // Friendly fallback so candidate session is not interrupted
+      const fallbackMsg = `Thank you for that response. To continue our discussion regarding your ${sessionConfig.role} background: what is the most complex bug you have diagnosed and fixed in a production system?`;
+      setQuestionCount((prev) => prev + 1);
+
+      const aiMessage = {
+        id: `msg-${Date.now() + 1}`,
+        sender: "ai",
+        text: fallbackMsg,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+      if (!isMuted) {
+        playSpeech(fallbackMsg);
+      }
+    } finally {
+      setIsAiThinking(false);
+    }
   };
+
 
   // Keyboard shortcut: Enter to submit, Shift+Enter for new line
   const handleKeyDown = (e) => {
