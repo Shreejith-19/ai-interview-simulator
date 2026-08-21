@@ -24,4 +24,20 @@ const protect = (req, res, next) => {
   }
 };
 
-export default protect;
+export const optionalProtect = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+    try {
+      const decoded = verifyToken(token);
+      req.user = decoded.userId;
+    } catch {
+      // Ignore invalid token in optionalProtect
+    }
+  }
+
+  return next();
+};
+
+export default protect;
