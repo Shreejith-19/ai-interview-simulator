@@ -25,23 +25,6 @@ const recentInterviews = [
   },
 ];
 
-const stats = [
-  {
-    label: "Technical Score",
-    value: "86%",
-    note: "+8% from last session",
-  },
-  {
-    label: "Communication Score",
-    value: "91%",
-    note: "+4% from last session",
-  },
-  {
-    label: "Overall Score",
-    value: "88%",
-    note: "Consistent performance",
-  },
-];
 
 const statusStyles = {
   Completed: "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30",
@@ -85,18 +68,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        {stats.map((stat) => (
-          <article
-            key={stat.label}
-            className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/10"
-          >
-            <p className="text-sm text-slate-400">{stat.label}</p>
-            <h3 className="mt-3 text-4xl font-semibold text-white">{stat.value}</h3>
-            <p className="mt-2 text-sm text-cyan-200/80">{stat.note}</p>
-          </article>
-        ))}
-      </div>
 
       <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-lg shadow-black/10">
