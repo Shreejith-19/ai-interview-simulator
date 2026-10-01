@@ -124,6 +124,10 @@ export default function Resume() {
     });
   };
 
+  const handleContinueWithoutResume = () => {
+    navigate("/interview/setup");
+  };
+
   return (
     <section className="mx-auto max-w-3xl px-4 py-8">
       <div className="w-full rounded-3xl border border-white/10 bg-slate-900/90 p-8 shadow-2xl shadow-cyan-950/30 backdrop-blur">
@@ -131,7 +135,7 @@ export default function Resume() {
           <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">Resume Upload</p>
           <h2 className="mt-3 text-3xl font-semibold text-white">Upload Your Resume</h2>
           <p className="mt-2 text-sm text-slate-400">
-            Upload your PDF resume so the AI interviewer can generate questions tailored to your actual skills and projects.
+            Upload your PDF resume so the AI interviewer can generate questions tailored to your actual skills and projects, or skip to configure manually.
           </p>
         </div>
 
@@ -206,6 +210,24 @@ export default function Resume() {
             </div>
           )}
         </form>
+
+        {/* Secondary Option: Continue without a resume */}
+        <div className="mt-6 text-center">
+          <div className="relative my-4 flex items-center justify-center">
+            <div className="w-full border-t border-white/10" />
+            <span className="absolute bg-slate-900 px-3 text-xs uppercase tracking-wider text-slate-400">
+              or
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleContinueWithoutResume}
+            className="w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-3.5 font-semibold text-white transition hover:border-cyan-400/40 hover:bg-white/10"
+          >
+            Continue without a resume →
+          </button>
+        </div>
 
         {/* Parsed Resume Preview & Action */}
         {extractedResume && (

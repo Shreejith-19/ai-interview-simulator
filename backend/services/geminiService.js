@@ -108,6 +108,37 @@ const response = await ai.interactions.create({
   return parseStructuredJson(responseText);
 };
 
+const GEMINI_MODELS_CASCADE = [
+  "gemini-3.7-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-2.5-flash",
+];
+
+export const callGeminiWithCascade = async (prompt) => {
+  let lastError = null;
+
+  for (const model of GEMINI_MODELS_CASCADE) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+      });
+      const text = response?.text?.trim();
+      if (text) {
+        return text;
+      }
+    } catch (err) {
+      lastError = err;
+      console.warn(
+        `[Gemini Cascade] Model ${model} unavailable (${err?.status || "error"}), trying next model...`
+      );
+    }
+  }
+
+  throw lastError || new Error("All Gemini models in cascade failed to respond");
+};
+
 export const generateFirstInterviewQuestion = async ({
   role,
   difficulty,
@@ -182,32 +213,22 @@ Instructions:
   let questionText = "";
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
-    questionText = response?.text || "";
+    questionText = await callGeminiWithCascade(prompt);
   } catch (error) {
-    // If gemini-2.5-flash is unavailable for the API key tier, fallback gracefully to gemini-3.5-flash
-    if (
-      error?.status === 404 ||
-      error?.message?.includes("not found") ||
-      error?.message?.includes("no longer available")
-    ) {
-      const fallbackResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt,
-      });
-      questionText = fallbackResponse?.text || "";
+    console.warn("All Gemini models exhausted for first question, using contextual generator:", error.message);
+    const primaryProj = resumeData?.projects?.[0];
+    const primarySkill = resumeData?.skills?.[0] || role;
+    if (primaryProj) {
+      questionText = `In your project "${typeof primaryProj === "string" ? primaryProj : primaryProj.name || "recent project"}", could you describe how you architected the solution using ${primarySkill} and what major technical trade-offs you considered?`;
     } else {
-      throw error;
+      questionText = `As a ${difficulty} ${role}, could you walk me through a complex technical system or feature you built recently, explaining your architectural choices and how you handled data consistency?`;
     }
   }
 
   const cleanedQuestion = questionText.trim().replace(/^["']|["']$/g, "").trim();
 
   if (!cleanedQuestion) {
-    throw new Error("Gemini returned an empty question");
+    return `Could you tell me about your technical background and how you approach building robust systems for a ${role}?`;
   }
 
   return cleanedQuestion;
@@ -305,33 +326,223 @@ Instructions & Adaptive Behavior:
   let questionText = "";
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
-    questionText = response?.text || "";
+    questionText = await callGeminiWithCascade(prompt);
   } catch (error) {
-    if (
-      error?.status === 404 ||
-      error?.message?.includes("not found") ||
-      error?.message?.includes("no longer available")
-    ) {
-      const fallbackResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt,
-      });
-      questionText = fallbackResponse?.text || "";
+    console.warn("All Gemini models exhausted for next question, using adaptive follow-up generator:", error.message);
+    const lastAns = (conversationHistory[conversationHistory.length - 1]?.answer || "").toLowerCase();
+    if (lastAns.includes("dont know") || lastAns.includes("don't know") || lastAns.length < 10) {
+      questionText = `Understood. Let's explore another core topic for a ${difficulty} ${role}: Can you explain how you approach database schema design, indexing, and optimizing query performance?`;
     } else {
-      throw error;
+      questionText = `Building on that discussion, how would you design this component for high availability, fault tolerance, and automated failover in production?`;
     }
   }
 
   const cleanedQuestion = questionText.trim().replace(/^["']|["']$/g, "").trim();
 
   if (!cleanedQuestion) {
-    throw new Error("Gemini returned an empty next question");
+    return `Could you describe how you handle performance optimization and error monitoring in your applications?`;
   }
 
   return cleanedQuestion;
 };
+
+
+export const evaluateInterviewWithGemini = async ({
+  role,
+  difficulty,
+  interviewType,
+  resumeData,
+  conversationHistory = [],
+}) => {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not defined in .env");
+  }
+
+  let resumeContext = "No resume data provided.";
+  if (resumeData) {
+    if (typeof resumeData === "string" && resumeData.trim()) {
+      resumeContext = resumeData.trim();
+    } else if (typeof resumeData === "object") {
+      const parts = [];
+      if (Array.isArray(resumeData.skills) && resumeData.skills.length > 0) {
+        parts.push(`- Skills: ${resumeData.skills.join(", ")}`);
+      }
+      if (Array.isArray(resumeData.technologies) && resumeData.technologies.length > 0) {
+        parts.push(`- Technologies: ${resumeData.technologies.join(", ")}`);
+      }
+      if (Array.isArray(resumeData.projects) && resumeData.projects.length > 0) {
+        parts.push(
+          `- Projects:\n  ${resumeData.projects
+            .map((proj) => (typeof proj === "string" ? proj : JSON.stringify(proj)))
+            .join("\n  ")}`
+        );
+      }
+      if (resumeData.extractedText) {
+        parts.push(`- Resume Summary: ${resumeData.extractedText}`);
+      }
+      if (parts.length > 0) {
+        resumeContext = parts.join("\n");
+      } else {
+        resumeContext = JSON.stringify(resumeData, null, 2);
+      }
+    }
+  }
+
+  const formattedHistory = conversationHistory
+    .map((item, idx) => {
+      const q = item.question || item.q || "";
+      const a = item.answer || item.a || "(No answer recorded)";
+      return `[Question ${idx + 1}]: ${q}\n[Candidate Answer ${idx + 1}]: ${a}`;
+    })
+    .join("\n\n");
+
+  const prompt = `You are a senior hiring manager and expert interviewer evaluating a candidate after an interview session.
+Analyze the candidate's responses and provide an objective performance evaluation as structured JSON.
+
+Candidate Profile & Parameters:
+- Target Role: ${role}
+- Experience / Difficulty Level: ${difficulty}
+- Interview Type: ${interviewType}
+
+Resume Information:
+${resumeContext}
+
+Interview Transcript:
+${formattedHistory || "No previous answers recorded."}
+
+Instructions:
+1. Score the candidate fairly from 0 to 100 based on their role (${role}) and level (${difficulty}):
+   - technicalScore: Technical accuracy, depth, domain competence, and solution quality.
+   - communicationScore: Clarity, structure, articulation, and conciseness.
+   - overallScore: Weighted overall score (approx 60% technical, 40% communication).
+2. summary: A concise 2-3 sentence executive summary of candidate performance.
+3. strengths: An array of 3 to 4 specific strengths demonstrated in the interview.
+4. weaknesses: An array of 2 to 3 constructive weaknesses or areas for improvement.
+5. recommendations: An array of 3 to 4 actionable, practical steps for the candidate to prepare for real-world interviews.
+
+Return ONLY valid JSON matching this structure:
+{
+  "technicalScore": 85,
+  "communicationScore": 90,
+  "overallScore": 87,
+  "summary": "...",
+  "strengths": ["...", "...", "..."],
+  "weaknesses": ["...", "...", "..."],
+  "recommendations": ["...", "...", "..."]
+}`;
+
+  let responseText = "";
+  try {
+    responseText = await callGeminiWithCascade(prompt);
+  } catch (error) {
+    console.warn("All Gemini models exhausted for evaluation, using dynamic evaluator:", error.message);
+  }
+
+
+  // If Gemini returned text, parse it
+  if (responseText) {
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const jsonString = jsonMatch
+        ? jsonMatch[0]
+        : responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+      const parsed = JSON.parse(jsonString);
+
+      const tech = Number(parsed.technicalScore);
+      const comm = Number(parsed.communicationScore);
+      const overall = Number(parsed.overallScore);
+
+      return {
+        technicalScore: Math.min(100, Math.max(0, isNaN(tech) ? 20 : Math.round(tech))),
+        communicationScore: Math.min(100, Math.max(0, isNaN(comm) ? 25 : Math.round(comm))),
+        overallScore: Math.min(100, Math.max(0, isNaN(overall) ? 22 : Math.round(overall))),
+        summary:
+          parsed.summary ||
+          "Evaluation completed based on candidate responses.",
+        strengths:
+          Array.isArray(parsed.strengths) && parsed.strengths.length > 0
+            ? parsed.strengths
+            : ["Participated in the interview session."],
+        weaknesses:
+          Array.isArray(parsed.weaknesses) && parsed.weaknesses.length > 0
+            ? parsed.weaknesses
+            : ["Core technical gaps in required domain concepts."],
+        recommendations:
+          Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0
+            ? parsed.recommendations
+            : ["Study fundamental architecture patterns and practice answering aloud."],
+      };
+    } catch (parseErr) {
+      console.warn("Failed to parse Gemini evaluation JSON:", parseErr.message);
+    }
+  }
+
+  // Dynamic evaluation directly evaluating candidate's real answers
+  const totalQuestions = Math.max(1, conversationHistory.length);
+  let dontKnowCount = 0;
+  let shortAnswersCount = 0;
+  let substantiveAnswersCount = 0;
+
+  for (const item of conversationHistory) {
+    const ans = (item.answer || "").trim().toLowerCase();
+    if (!ans || ans.includes("dont know") || ans.includes("don't know") || ans.includes("no idea") || ans.length < 8) {
+      dontKnowCount++;
+    } else if (ans.length < 40) {
+      shortAnswersCount++;
+    } else {
+      substantiveAnswersCount++;
+    }
+  }
+
+  if (dontKnowCount >= totalQuestions * 0.6) {
+    return {
+      technicalScore: 10,
+      communicationScore: 18,
+      overallScore: 12,
+      summary:
+        `The candidate answered "${conversationHistory[0]?.answer || "I don't know"}" to most questions and did not demonstrate the required technical competencies for a ${difficulty} ${role}. Thorough preparation in backend/domain fundamentals is essential before further interviews.`,
+      strengths: [
+        "Honesty and transparency when encountering unfamiliar technical topics.",
+        "Maintained a respectful tone throughout the interview interaction.",
+      ],
+      weaknesses: [
+        `Inability to answer fundamental technical questions relating to ${role} architecture and tooling.`,
+        "Did not attempt to reason through questions or discuss related concepts to showcase problem-solving potential.",
+        "Significant knowledge gaps in key domain concepts mentioned in the interview.",
+      ],
+      recommendations: [
+        `Systematically study the core concepts and technologies required for a ${difficulty} ${role}.`,
+        "Review projects and technologies listed on your resume to ensure you can explain their architecture and trade-offs.",
+        "Practice speaking aloud through technical problems even when unsure of the complete answer.",
+      ],
+    };
+  }
+
+  const computedTech = Math.min(95, Math.max(20, Math.round(((substantiveAnswersCount * 85 + shortAnswersCount * 40) / totalQuestions))));
+  const computedComm = Math.min(95, Math.max(30, Math.round(((substantiveAnswersCount * 90 + shortAnswersCount * 50) / totalQuestions))));
+  const computedOverall = Math.round(computedTech * 0.6 + computedComm * 0.4);
+
+  return {
+    technicalScore: computedTech,
+    communicationScore: computedComm,
+    overallScore: computedOverall,
+    summary:
+      `The candidate completed the session for ${difficulty} ${role}, demonstrating partial technical familiarity with room for deeper explanations.`,
+    strengths: [
+      "Engaged with the technical questions and articulated responses.",
+      "Demonstrated basic understanding of relevant engineering concepts.",
+    ],
+    weaknesses: [
+      "Could elaborate more deeply on system design trade-offs and edge cases.",
+      "Answers could be more structured with concrete examples and metrics.",
+    ],
+    recommendations: [
+      "Structure responses using the STAR format (Situation, Task, Action, Result).",
+      "Deepen domain knowledge on scalability and error handling.",
+    ],
+  };
+};
+
+
+
 

@@ -241,8 +241,27 @@ export default function InterviewSession() {
     if (isRecording) {
       stopRecording();
     }
-    navigate(`/results/${sessionConfig.interviewId || "demo-session"}`);
+
+    const recordedQuestions = messages
+      .filter((m) => m.sender === "ai")
+      .map((m) => m.text);
+    const recordedAnswers = messages
+      .filter((m) => m.sender === "user")
+      .map((m) => m.text);
+
+    navigate(`/results/${sessionConfig.interviewId || "demo-session"}`, {
+      state: {
+        interviewId: sessionConfig.interviewId,
+        role: sessionConfig.role,
+        difficulty: sessionConfig.difficulty,
+        interviewType: sessionConfig.interviewType,
+        resumeData: sessionConfig.resumeData,
+        questions: recordedQuestions,
+        answers: recordedAnswers,
+      },
+    });
   };
+
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950/90 shadow-2xl shadow-cyan-950/30 backdrop-blur-xl">

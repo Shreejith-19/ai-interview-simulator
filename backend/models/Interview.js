@@ -40,6 +40,15 @@ const interviewSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    feedback: {
+      technicalScore: { type: Number, default: 0 },
+      communicationScore: { type: Number, default: 0 },
+      overallScore: { type: Number, default: 0 },
+      summary: { type: String, default: "" },
+      strengths: { type: [String], default: [] },
+      weaknesses: { type: [String], default: [] },
+      recommendations: { type: [String], default: [] },
+    },
   },
   {
     timestamps: true,
@@ -48,4 +57,5 @@ const interviewSchema = new mongoose.Schema(
 
 const Interview = mongoose.model("Interview", interviewSchema);
 
-export default Interview;
+export default Interview;
+

@@ -1,3 +1,4 @@
+import { Link, useNavigate } from "react-router-dom";
 import useAuth from "../context/useAuth.js";
 
 const recentInterviews = [
@@ -49,7 +50,12 @@ const statusStyles = {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const displayName = user?.name || "there";
+
+  const handleStartInterview = () => {
+    navigate("/resume");
+  };
 
   return (
     <section className="space-y-8">
@@ -63,12 +69,19 @@ export default function Dashboard() {
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <button className="rounded-2xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300">
+          <button
+            type="button"
+            onClick={handleStartInterview}
+            className="rounded-2xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
+          >
             Start Interview
           </button>
-          <button className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white transition hover:border-cyan-400/40 hover:bg-white/10">
+          <Link
+            to="/history"
+            className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 font-semibold text-white transition hover:border-cyan-400/40 hover:bg-white/10"
+          >
             View History
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -137,7 +150,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <button className="mt-6 w-full rounded-2xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300">
+          <button
+            type="button"
+            onClick={handleStartInterview}
+            className="mt-6 w-full rounded-2xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
+          >
             Start Interview
           </button>
         </aside>

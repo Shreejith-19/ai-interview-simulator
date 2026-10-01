@@ -75,9 +75,16 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   }, [setAuthState]);
 
-  const logout = useCallback(() => {
-    setAuthState(null, null);
+  const logout = useCallback(async () => {
+    try {
+      await axios.post(`${AUTH_API_BASE_URL}/logout`);
+    } catch {
+      // Ignore network errors on logout
+    } finally {
+      setAuthState(null, null);
+    }
   }, [setAuthState]);
+
 
   const value = useMemo(
     () => ({

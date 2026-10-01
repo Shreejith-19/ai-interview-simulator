@@ -18,6 +18,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/resume", resumeRoutes);
 app.use("/api/interview", interviewRoutes);
+app.use("/api/interviews", interviewRoutes);
+
 
 
 app.get("/", (req, res) => {

@@ -3,7 +3,9 @@ import Interview from "../models/Interview.js";
 import {
   generateFirstInterviewQuestion,
   generateNextInterviewQuestion,
+  evaluateInterviewWithGemini,
 } from "../services/geminiService.js";
+
 
 const VALID_ROLES = [
   "Backend Developer",
@@ -206,4 +208,202 @@ export const getNextQuestion = async (req, res) => {
     });
   }
 };
+
+export const getInterviewById = async (req, res) => {
+  try {
+    const { interviewId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid interview ID format",
+      });
+    }
+
+    const interview = await Interview.findById(interviewId);
+    if (!interview) {
+      return res.status(404).json({
+        success: false,
+        message: "Interview not found",
+      });
+    }
+
+    if (interview.userId) {
+      if (!req.user || interview.userId.toString() !== req.user.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: You do not have access to this interview",
+        });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      interview,
+    });
+  } catch (error) {
+    console.error("Error fetching interview:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to retrieve interview session",
+    });
+  }
+};
+
+export const evaluateInterview = async (req, res) => {
+  try {
+    const { interviewId } = req.params;
+    const { answers, questions } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid interview ID format",
+      });
+    }
+
+    const interview = await Interview.findById(interviewId);
+    if (!interview) {
+      return res.status(404).json({
+        success: false,
+        message: "Interview not found",
+      });
+    }
+
+    if (interview.userId) {
+      if (!req.user || interview.userId.toString() !== req.user.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden: You do not have permission to evaluate this interview",
+        });
+      }
+    }
+
+    // Sync any latest questions/answers from body if provided
+    if (Array.isArray(questions) && questions.length > 0) {
+      interview.questions = questions;
+    }
+    if (Array.isArray(answers) && answers.length > 0) {
+      interview.answers = answers;
+    }
+
+    // Pair questions and answers
+    const conversationHistory = interview.questions.map((q, idx) => ({
+      question: q,
+      answer: interview.answers[idx] || "(No answer recorded)",
+    }));
+
+    const evaluation = await evaluateInterviewWithGemini({
+      role: interview.role,
+      difficulty: interview.difficulty,
+      interviewType: interview.interviewType,
+      resumeData: interview.resumeData,
+      conversationHistory,
+    });
+
+    interview.feedback = evaluation;
+    interview.status = "completed";
+    await interview.save();
+
+    return res.status(200).json({
+      success: true,
+      interviewId: interview._id,
+      evaluation,
+      interview,
+    });
+  } catch (error) {
+    console.error("Error evaluating interview:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to evaluate interview",
+    });
+  }
+};
+
+export const evaluateInterviewDirect = async (req, res) => {
+  try {
+    const {
+      role,
+      difficulty,
+      interviewType,
+      resumeData,
+      questions,
+      answers,
+      conversationHistory,
+    } = req.body || {};
+
+    let history = conversationHistory || [];
+    if ((!history || history.length === 0) && Array.isArray(questions)) {
+      history = questions.map((q, idx) => ({
+        question: q,
+        answer: Array.isArray(answers) ? answers[idx] || "(No answer provided)" : "(No answer provided)",
+      }));
+    }
+
+    const evaluation = await evaluateInterviewWithGemini({
+      role: role || "Backend Developer",
+      difficulty: difficulty || "Junior",
+      interviewType: interviewType || "Technical",
+      resumeData: resumeData || null,
+      conversationHistory: history,
+    });
+
+    return res.status(200).json({
+      success: true,
+      evaluation,
+    });
+  } catch (error) {
+    console.error("Direct evaluation error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to evaluate interview",
+    });
+  }
+};
+
+export const getInterviewHistory = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Not authorized, user token required",
+      });
+    }
+
+    const interviews = await Interview.find({ userId: req.user }).sort({
+      createdAt: -1,
+    });
+
+    const history = interviews.map((item) => ({
+      interviewId: item._id,
+      interviewDate: item.createdAt,
+      role: item.role,
+      difficulty: item.difficulty,
+      interviewType: item.interviewType,
+      technicalScore: item.feedback?.technicalScore ?? 0,
+      communicationScore: item.feedback?.communicationScore ?? 0,
+      overallScore: item.feedback?.overallScore ?? 0,
+      strengths: item.feedback?.strengths || [],
+      weaknesses: item.feedback?.weaknesses || [],
+      recommendations: item.feedback?.recommendations || [],
+      summary: item.feedback?.summary || "",
+      status: item.status,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: history.length,
+      history,
+    });
+  } catch (error) {
+    console.error("Error fetching interview history:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to retrieve interview history",
+    });
+  }
+};
+
+
+
 

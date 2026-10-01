@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 const ROLES = [
@@ -23,14 +23,24 @@ const API_BASE_URL = "http://localhost:5000/api/interview";
 
 export default function InterviewSetup() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const uploadedResumeData = location.state?.resumeData;
+  const initialResumeText = uploadedResumeData?.extractedText || "";
 
   const [role, setRole] = useState("Backend Developer");
   const [difficulty, setDifficulty] = useState("Junior");
   const [interviewType, setInterviewType] = useState("Technical");
-  const [skills, setSkills] = useState("Node.js, Express, MongoDB, REST APIs");
-  const [projects, setProjects] = useState("E-commerce API with JWT authentication and payment integration");
+  const [skills, setSkills] = useState(
+    uploadedResumeData?.skills?.join(", ") || ""
+  );
+  const [projects, setProjects] = useState(
+    uploadedResumeData?.projects?.join("\n") || ""
+  );
+  const [resumeText, setResumeText] = useState(initialResumeText);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
 
   const handleStartInterview = async (e) => {
     e.preventDefault();
@@ -55,6 +65,7 @@ export default function InterviewSetup() {
         resumeData: {
           skills: skillsArray,
           projects: projectsArray,
+          extractedText: resumeText || null,
         },
       });
 
@@ -93,6 +104,7 @@ export default function InterviewSetup() {
     }
   };
 
+
   return (
     <section className="mx-auto max-w-3xl px-4 py-8">
       <div className="rounded-3xl border border-white/10 bg-slate-900/90 p-8 shadow-2xl shadow-cyan-950/30 backdrop-blur-xl">
@@ -102,7 +114,15 @@ export default function InterviewSetup() {
           <p className="mt-2 text-sm text-slate-400">
             Customize your mock interview parameters to practice real-world scenarios.
           </p>
+
+          {resumeText && (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-300">
+              <span>✓ Uploaded Resume Attached</span>
+              <span className="text-slate-400">• Gemini will prioritize questions from your resume</span>
+            </div>
+          )}
         </div>
+
 
         <form onSubmit={handleStartInterview} className="space-y-6">
           {/* Target Role */}
