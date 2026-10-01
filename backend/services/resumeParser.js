@@ -14,6 +14,12 @@ export const extractResumeText = async (filePath) => {
     throw new Error("Unable to read the uploaded PDF file");
   }
 
+  // Defence-in-depth: verify PDF magic bytes (%PDF) on the raw buffer
+  const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46]); // %PDF
+  if (fileBuffer.length < 4 || !fileBuffer.slice(0, 4).equals(PDF_MAGIC)) {
+    throw new Error("Uploaded file is not a valid PDF");
+  }
+
   let extractedText = "";
 
   try {
