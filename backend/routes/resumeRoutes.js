@@ -3,6 +3,7 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import protect from "../middlewares/authMiddleware.js";
 import { uploadResume } from "../controllers/resumeController.js";
 
 const router = Router();
@@ -22,12 +23,45 @@ const storage = multer.diskStorage({
   },
 });
 
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46]); // %PDF
+
 const fileFilter = (_, file, callback) => {
+  // 1. MIME type check (client-supplied header)
   if (file.mimetype !== "application/pdf") {
     return callback(new Error("Only PDF files are allowed"), false);
   }
 
-  return callback(null, true);
+  // 2. Magic byte check — read first 4 bytes from the stream to verify real PDF signature
+  const chunks = [];
+  let bytesRead = 0;
+  const stream = file.stream;
+
+  if (!stream || typeof stream.on !== "function") {
+    // Stream unavailable (e.g., memory storage); fall back to MIME-only check
+    return callback(null, true);
+  }
+
+  const onData = (chunk) => {
+    chunks.push(chunk);
+    bytesRead += chunk.length;
+    if (bytesRead >= 4) {
+      stream.off("data", onData);
+      stream.off("error", onError);
+      const header = Buffer.concat(chunks).slice(0, 4);
+      if (!header.equals(PDF_MAGIC)) {
+        return callback(new Error("File content does not match a valid PDF"), false);
+      }
+      return callback(null, true);
+    }
+  };
+
+  const onError = () => {
+    stream.off("data", onData);
+    callback(new Error("Could not read uploaded file"), false);
+  };
+
+  stream.on("data", onData);
+  stream.on("error", onError);
 };
 
 const upload = multer({
@@ -38,7 +72,7 @@ const upload = multer({
   },
 });
 
-router.post("/upload", upload.single("resume"), uploadResume);
+router.post("/upload", protect, upload.single("resume"), uploadResume);
 
 router.use((error, req, res, next) => {
   if (error) {
