@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Prevent white flash on overscroll/elastic bounce (macOS, iOS, mobile) */
+html,
+body {
+  background-color: #020617; /* slate-950 — matches the app's root bg */
+}
+
 @layer utilities {
   /* Custom sleek scrollbar */
   .chat-scrollbar::-webkit-scrollbar {
