@@ -227,8 +227,32 @@ export default function History() {
         </section>
       )}
 
+      {/* No results for current filter */}
+      {!isLoading && token && history.length > 0 && filteredHistory.length === 0 && (
+        <section className="rounded-3xl border border-white/10 bg-slate-900/80 p-10 text-center backdrop-blur-xl space-y-3">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-500/10 text-amber-300">
+            <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-white">No interviews match your filters</h3>
+          <p className="text-sm text-slate-400">
+            Try adjusting the role or difficulty filter to see more results.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setRoleFilter("All"); setDifficultyFilter("All"); }}
+            className="mt-1 inline-flex items-center gap-1.5 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            Clear filters
+          </button>
+        </section>
+      )}
+
       {/* Records List (Clicking opens full report) */}
       {!isLoading && filteredHistory.length > 0 && (
+
         <section className="space-y-4">
           {filteredHistory.map((item) => {
             const formattedDate = item.interviewDate
