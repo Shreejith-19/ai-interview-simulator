@@ -80,13 +80,6 @@ export default function Navbar() {
             </Link>
 
             <Link
-              to="/results/demo-id"
-              className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-slate-300 transition hover:border-cyan-400/40 hover:text-white"
-            >
-              Results
-            </Link>
-
-            <Link
               to="/history"
               className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-slate-300 transition hover:border-cyan-400/40 hover:text-white"
             >
