@@ -313,12 +313,8 @@ Create a new account, upload a sample PDF resume, configure your interview role,
 
 ## Future Improvements
 
-- [ ] **Configurable Environment Variables for Frontend:** Replace hardcoded API endpoints with `import.meta.env.VITE_API_BASE_URL` to streamline production deployments.
 - [ ] **Rate Limiting & Security Headers:** Integrate `express-rate-limit` and `helmet` on backend endpoints to guard against API quota abuse.
 - [ ] **Live Audio Streaming:** Migrate to Gemini Live API bidirectional WebSocket audio streaming for natural, low-latency conversational interviews.
-- [ ] **Interactive Coding Workspace:** Embed an in-browser code editor (Monaco Editor) with code execution for live technical coding interviews.
-- [ ] **Granular Analytics:** Visual competency radar charts (Data Structures, System Design, Communication, Problem Solving) across sessions.
-- [ ] **Mock Video Interview Mode:** Optional webcam feed with facial expression and pacing analysis.
 
 ---
 
